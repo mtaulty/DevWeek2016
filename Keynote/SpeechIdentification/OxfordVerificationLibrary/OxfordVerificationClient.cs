@@ -22,7 +22,7 @@
 
       return (list);
     }
-    public async Task<string> GetVerificationPhraseForUserAsync(string user)
+    public async Task<string> GetVerificationPhrase()
     {
       string phrase = string.Empty;
 
@@ -35,12 +35,7 @@
           this.verificationPhrases = phrases.Select(p => p.Phrase).ToList();
         }
       }
-
-      if (this.verificationPhrases != null)
-      {
-        phrase = this.verificationPhrases[
-          user.Length % this.verificationPhrases.Count];
-      }
+      phrase = this.verificationPhrases[2];
       return (phrase);
     }
     public async Task<EnrollmentResult> RecordAndEnrollUserAsync(
@@ -62,8 +57,8 @@
       }
       return (result);
     }
-    public async Task<VerificationResult> RecordAndVerifyUserAsync(
-      string user, TimeSpan recordingTime)
+    public async Task<VerificationResult> VerifyUserAgainstSpeechAsync(
+      string user, IInputStream speechStream)
     {
       VerificationResult result = null;
 
@@ -73,11 +68,9 @@
       {
         throw new ArgumentException($"user name {user} is not recognised");
       }
-      using (var recordedStream = await this.RecordSpeechToFileAsync(recordingTime))
-      {
-        result = await this.restClient.VerifyAsync(
-          accountGuid.Value, recordedStream);
-      }
+      result = await this.restClient.VerifyAsync(
+        accountGuid.Value, speechStream);
+
       return (result);
     }
     async Task CreateStorageFileAsync()
@@ -87,7 +80,7 @@
           TEMPORARY_FILE_NAME,
           CreationCollisionOption.ReplaceExisting);
     }
-    async Task<IInputStream> RecordSpeechToFileAsync(TimeSpan recordingTime)
+    public async Task<IRandomAccessStream> RecordSpeechToFileAsync(TimeSpan recordingTime)
     {
       await this.CreateStorageFileAsync();
 

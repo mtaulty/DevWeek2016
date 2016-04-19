@@ -133,10 +133,11 @@
     }
     async Task<string> ListenAsync()
     {
+      string returnValue = string.Empty;
+
       await this.recognizer.CompileConstraintsAsync();
 
       var result = await this.recognizer.RecognizeAsync();
-      var returnValue = string.Empty;
 
       if (result.Status == SpeechRecognitionResultStatus.Success)
       {

@@ -42,9 +42,11 @@
 
       return (result);
     }
-    async Task<T> SendPcmStreamToOxfordEndpointAsync<T>(Uri uri, IInputStream inputStream)
+    async Task<T> SendPcmStreamToOxfordEndpointAsync<T>(Uri uri, 
+      IInputStream inputStream)
     {
-      StreamContent content = new StreamContent(inputStream.AsStreamForRead());
+      StreamContent content = new StreamContent(
+        inputStream.AsStreamForRead());
 
       var response = await this.HttpClient.PostAsync(uri, content);
 

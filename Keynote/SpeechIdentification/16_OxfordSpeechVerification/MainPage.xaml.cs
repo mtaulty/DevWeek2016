@@ -1,19 +1,12 @@
 ﻿namespace App336
 {
-  using System.Collections.Generic;
   using System.Threading.Tasks;
   using Windows.UI.Xaml.Controls;
-  using Windows.UI.Xaml.Navigation;
   using System;
-  using System.Linq;
-  using Windows.Storage;
   using Windows.UI.Xaml;
-  using Windows.UI.Popups;
   using com.mtaulty.OxfordVerify;
-  using Windows.Media.SpeechSynthesis;
-  using Windows.Media.SpeechRecognition;
-  using Windows.UI.Core;
-  using Windows.UI.Xaml.Media.Animation;
+  using Windows.Storage.Streams;
+
   public sealed partial class MainPage : Page
   {
     enum VisualStates
@@ -64,21 +57,6 @@
         }
       }
     }
-
-    void SwitchState(VisualStates state)
-    {
-      VisualStateManager.GoToState(this, state.ToString(), true);
-    }
-    async Task<ConversationResult> DisplayAndSayAsync(string display, string say)
-    {
-      if (!string.IsNullOrEmpty(display))
-      {
-        this.data.DisplayText = display;
-      }
-      var result = await this.conversation.SayAsync(say);
-
-      return (result);
-    }
     async Task GetCalendarDetailsAsync()
     {
       var identified = false;
@@ -92,26 +70,32 @@
       var accountNames = await this.oxfordClient.GetAllAccountNamesAsync();
       var registeredUser = "not met";
 
+      var recordedStream = await this.RecordSpeechToFileAsync<IRandomAccessStream>(
+        DEFAULT_RECORD_TIME,
+        async () =>
+        {
+          var speechStream = await this.oxfordClient.RecordSpeechToFileAsync(
+            TimeSpan.FromSeconds(DEFAULT_RECORD_TIME));
+
+          return (speechStream);
+        }
+      );
+
       foreach (var accountName in accountNames)
       {
-        for (int i = 0; i < 3; i++)
-        {
-          try
-          {
-            identified = await this.TryVerifyUserAsync(accountName);
-            break;
-          }
-          catch
-          {
+        var localStream = recordedStream.CloneStream();
 
-          }
-        }
+        identified = await this.TryVerifyUserAsync(
+          accountName, localStream);
+
         if (identified)
         {
           registeredUser = accountName;
           break;
         }
       }
+      recordedStream.Dispose();
+
       string response = "we've only just met, you'll have to plan your own day";
 
       if (identified)
@@ -119,39 +103,34 @@
         switch (registeredUser.ToLower().Trim())
         {
           case andrewUser:
-            response = "it looks like you're have another lie in followed by french toast";
+            response =
+              "it looks like you're having another lie in, enjoy";
             break;
           case mikeUser:
-            response = "it looks like you've more code to write, crack on with it";
+            response =
+              "it looks like you've more code to write, crack on with it";
             break;
           default:
             break;
         }
       }
-      await this.DisplayAndSayAsync($"{registeredUser}, calendar", response);
-      this.BeginInteractionsAsync();
+      await this.DisplayAndSayAsync($"for {registeredUser}, today...", response);
+      await this.BeginInteractionsAsync();
     }
-    async Task<bool> TryVerifyUserAsync(string userName)
+    async Task<bool> TryVerifyUserAsync(string userName,
+      IInputStream speechStream)
     {
       bool identified = false;
 
-      var result = await this.RecordSpeechToFileAsync<VerificationResult>(
-        userName,
-        DEFAULT_RECORD_TIME,
-        async () =>
-        {
-          var localResult = await this.oxfordClient.RecordAndVerifyUserAsync(
-            userName, TimeSpan.FromSeconds(DEFAULT_RECORD_TIME));
+      var result = await 
+        this.oxfordClient.VerifyUserAgainstSpeechAsync(
+          userName, speechStream);
 
-          return (localResult);
-        }
-      );
       identified = (result.Result == VerificationStatus.Accept);
 
       return (identified);
     }
     async Task<T> RecordSpeechToFileAsync<T>(
-      string userName,
       float recordTime,
       Func<Task<T>> asyncOxfordAction)
     {
@@ -160,10 +139,9 @@
         .PauseAsync(TimeSpan.FromMilliseconds(500))
         .SayAsync("please repeat the phrase displayed");
 
-      var phrase = await this.oxfordClient.GetVerificationPhraseForUserAsync(
-        userName);
+      var verificationPhrase = await this.oxfordClient.GetVerificationPhrase();
 
-      this.data.DisplayText = phrase;
+      this.data.DisplayText = verificationPhrase;
 
       await this.DisplayAndSayAsync(string.Empty, "go");
 
@@ -180,6 +158,21 @@
 
       return (oxfordTask.Result);
     }
+
+    void SwitchState(VisualStates state)
+    {
+      VisualStateManager.GoToState(this, state.ToString(), true);
+    }
+    async Task<ConversationResult> DisplayAndSayAsync(string display, string say)
+    {
+      if (!string.IsNullOrEmpty(display))
+      {
+        this.data.DisplayText = display;
+      }
+      var result = await this.conversation.SayAsync(say);
+
+      return (result);
+    }
     async Task RegisterAsync()
     {
       var enrolled = false;
@@ -191,7 +184,6 @@
         try
         {
           result = await this.RecordSpeechToFileAsync<EnrollmentResult>(
-            this.data.UserToAdd,
             DEFAULT_RECORD_TIME,
             async () =>
             {
@@ -236,14 +228,13 @@
     {
       await this.RegisterAsync();
     }
-    OxfordVerificationClient oxfordClient;
-    Conversation conversation;
-    DisplayTextViewModel data;
-    static readonly float DEFAULT_RECORD_TIME = 5.0f;
-
     async void OnListenAsync(object sender, RoutedEventArgs e)
     {
       await this.BeginInteractionsAsync();
     }
+    OxfordVerificationClient oxfordClient;
+    Conversation conversation;
+    DisplayTextViewModel data;
+    static readonly float DEFAULT_RECORD_TIME = 5.0f;
   }
 }

@@ -43,6 +43,12 @@
         }
       }
     }
+    async void OnContactChanged(object sender,
+      BandSensorReadingEventArgs<IBandContactReading> e)
+    {
+      await this.DispatchAsync(
+        () => this.ToggleForContactState(e.SensorReading.State));
+    }
     async Task ToggleForContactState(BandContactState contactState)
     {
       string animation = string.Empty;
@@ -68,10 +74,6 @@
         });
       }
     }
-    void ResetMedia()
-    {
-      this.mediaElement.Play();
-    }
     async Task AddHeartAndTemperatureHandlersAsync()
     {
       this.bandClient.SensorManager.SkinTemperature.ReportingInterval =
@@ -91,6 +93,23 @@
       // same here, re: timeout.
       await this.bandClient.SensorManager.HeartRate.StartReadingsAsync();
     }
+    async void OnHeartRateChanged(object sender,
+      BandSensorReadingEventArgs<IBandHeartRateReading> e)
+    {
+      this.currentPulseRate = e.SensorReading.HeartRate;
+      this.currentRateType = e.SensorReading.Quality.ToString();
+      await this.AdjustMediaAsync();
+    }
+    async void OnSkinReadingChanged(object sender,
+      BandSensorReadingEventArgs<IBandSkinTemperatureReading> e)
+    {
+      this.currentTemperature = e.SensorReading.Temperature;
+      await this.AdjustTemperatureAsync();
+    }
+    void ResetMedia()
+    {
+      this.mediaElement.Play();
+    }
     async Task RemoveHeartAndTemperatureHandlersAsync()
     {
       this.bandClient.SensorManager.SkinTemperature.ReadingChanged -= this.OnSkinReadingChanged;
@@ -101,25 +120,11 @@
 
       this.handlersAdded = false;
     }
-
-    async void OnContactChanged(object sender,
-      BandSensorReadingEventArgs<IBandContactReading> e)
-    {
-      await this.DispatchAsync(
-        () => this.ToggleForContactState(e.SensorReading.State));
-    }
     async Task DispatchAsync(Action a)
     {
       await this.Dispatcher.RunAsync(
         Windows.UI.Core.CoreDispatcherPriority.Normal,
         () => a());
-    }
-    async void OnHeartRateChanged(object sender,
-      BandSensorReadingEventArgs<IBandHeartRateReading> e)
-    {
-      this.currentPulseRate = e.SensorReading.HeartRate;
-      this.currentRateType = e.SensorReading.Quality.ToString();
-      await this.AdjustMediaAsync();
     }
     async Task AdjustMediaAsync()
     {
@@ -136,12 +141,6 @@
           this.txtQuality.Text = this.currentRateType;
         }
       );
-    }
-    async void OnSkinReadingChanged(object sender,
-      BandSensorReadingEventArgs<IBandSkinTemperatureReading> e)
-    {
-      this.currentTemperature = e.SensorReading.Temperature;
-      await this.AdjustTemperatureAsync();
     }
     async Task AdjustTemperatureAsync()
     {
